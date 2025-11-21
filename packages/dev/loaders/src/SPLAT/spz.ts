@@ -49,6 +49,21 @@ export function ParseSpz(data: ArrayBuffer, scene: Scene, loadingOptions: SPLATL
 
     let byteOffset = 16;
 
+    const metaData: Partial<IParsedSplat> = {};
+
+    if (version >= 4) {
+        const hasSafeOrbit = ubuf[28] !== 0;
+        if (hasSafeOrbit) {
+            const safeOrbitFloats = new Float32Array(data, 29, 3); // 3 floats starting at byte 29
+            const safeOrbitElevationMin = safeOrbitFloats[0];
+            const safeOrbitElevationMax = safeOrbitFloats[1];
+            const safeOrbitRadiusMin = safeOrbitFloats[2];
+            metaData.safeOrbitCameraElevationMinMax = [safeOrbitElevationMin, safeOrbitElevationMax];
+            metaData.safeOrbitCameraRadiusMin = safeOrbitRadiusMin;
+        }
+        byteOffset += 14;
+    }
+
     const position = new Float32Array(buffer);
     const scale = new Float32Array(buffer);
     const rgba = new Uint8ClampedArray(buffer);
@@ -93,8 +108,8 @@ export function ParseSpz(data: ArrayBuffer, scene: Scene, loadingOptions: SPLATL
         byteOffset += 3;
     }
 
-    // convert quaternion
     if (version >= 3) {
+        // convert quaternion
         /*
             In version 3, rotations are represented as the smallest three components of the normalized rotation quaternion, for optimal rotation accuracy.
             The largest component can be derived from the others and is not stored. Its index is stored on 2 bits
@@ -201,11 +216,11 @@ export function ParseSpz(data: ArrayBuffer, scene: Scene, loadingOptions: SPLATL
         }
 
         return new Promise((resolve) => {
-            resolve({ mode: Mode.Splat, data: buffer, hasVertexColors: false, sh: sh, trainedWithAntialiasing: !!flags });
+            resolve({ ...metaData, mode: Mode.Splat, data: buffer, hasVertexColors: false, sh: sh, trainedWithAntialiasing: !!flags });
         });
     }
 
     return new Promise((resolve) => {
-        resolve({ mode: Mode.Splat, data: buffer, hasVertexColors: false, trainedWithAntialiasing: !!flags });
+        resolve({ ...metaData, mode: Mode.Splat, data: buffer, hasVertexColors: false, trainedWithAntialiasing: !!flags });
     });
 }

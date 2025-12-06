@@ -24,7 +24,7 @@ import type { Camera } from "core/Cameras/camera";
 interface IDelayedTextureUpdate {
     covA: Uint16Array;
     covB: Uint16Array;
-    colors: Uint8Array;
+    colors: Uint16Array;
     centers: Float32Array;
     sh?: Uint8Array[];
 }
@@ -1390,7 +1390,7 @@ export class GaussianSplattingMesh extends Mesh {
         newGS._modelViewMatrix = Matrix.Identity();
         newGS._splatPositions = this._splatPositions;
         newGS._readyToDisplay = false;
-        newGS._instanciateWorker();
+        newGS._instantiateWorker();
 
         const binfo = this.getBoundingInfo();
         newGS.getBoundingInfo().reConstruct(binfo.minimum, binfo.maximum, this.getWorldMatrix());
@@ -1447,7 +1447,7 @@ export class GaussianSplattingMesh extends Mesh {
         };
     };
 
-    private _makeEmptySplat(index: number, covA: Uint16Array, covB: Uint16Array, colorArray: Uint8Array): void {
+    private _makeEmptySplat(index: number, covA: Uint16Array, covB: Uint16Array, colorArray: Uint16Array): void {
         const covBSItemSize = this._useRGBACovariants ? 4 : 2;
         this._splatPositions![4 * index + 0] = 0;
         this._splatPositions![4 * index + 1] = 0;
@@ -1468,7 +1468,7 @@ export class GaussianSplattingMesh extends Mesh {
         uBuffer: Uint8Array,
         covA: Uint16Array,
         covB: Uint16Array,
-        colorArray: Uint8Array,
+        colorArray: Uint16Array,
         minimum: Vector3,
         maximum: Vector3
     ): void {
@@ -1525,22 +1525,18 @@ export class GaussianSplattingMesh extends Mesh {
         covB[index * covBSItemSize + 0] = ToHalfFloat(covariances[4] / transform);
         covB[index * covBSItemSize + 1] = ToHalfFloat(covariances[5] / transform);
 
-        // colors
-        colorArray[index * 4 + 0] = uBuffer[32 * index + 24 + 0];
-        colorArray[index * 4 + 1] = uBuffer[32 * index + 24 + 1];
-        colorArray[index * 4 + 2] = uBuffer[32 * index + 24 + 2];
-        colorArray[index * 4 + 3] = uBuffer[32 * index + 24 + 3];
+        // colors - convert 8-bit values (0-255) to normalized range (0.0-1.0) and store as half-float
+        colorArray[index * 4 + 0] = ToHalfFloat(uBuffer[32 * index + 24 + 0] / 255);
+        colorArray[index * 4 + 1] = ToHalfFloat(uBuffer[32 * index + 24 + 1] / 255);
+        colorArray[index * 4 + 2] = ToHalfFloat(uBuffer[32 * index + 24 + 2] / 255);
+        colorArray[index * 4 + 3] = ToHalfFloat(uBuffer[32 * index + 24 + 3] / 255);
     }
 
-    private _updateTextures(covA: Uint16Array, covB: Uint16Array, colorArray: Uint8Array, sh?: Uint8Array[]): void {
+    private _updateTextures(covA: Uint16Array, covB: Uint16Array, colorArray: Uint16Array, sh?: Uint8Array[]): void {
         const textureSize = this._getTextureSize(this._vertexCount);
         // Update the textures
         const createTextureFromData = (data: Float32Array, width: number, height: number, format: number) => {
             return new RawTexture(data, width, height, format, this._scene, false, false, Constants.TEXTURE_BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_FLOAT);
-        };
-
-        const createTextureFromDataU8 = (data: Uint8Array, width: number, height: number, format: number) => {
-            return new RawTexture(data, width, height, format, this._scene, false, false, Constants.TEXTURE_BILINEAR_SAMPLINGMODE, Constants.TEXTURETYPE_UNSIGNED_BYTE);
         };
 
         const createTextureFromDataU32 = (data: Uint32Array, width: number, height: number, format: number) => {
@@ -1567,7 +1563,7 @@ export class GaussianSplattingMesh extends Mesh {
                 this._useRGBACovariants ? Constants.TEXTUREFORMAT_RGBA : Constants.TEXTUREFORMAT_RG
             );
             this._centersTexture = createTextureFromData(this._splatPositions!, textureSize.x, textureSize.y, Constants.TEXTUREFORMAT_RGBA);
-            this._colorsTexture = createTextureFromDataU8(colorArray, textureSize.x, textureSize.y, Constants.TEXTUREFORMAT_RGBA);
+            this._colorsTexture = createTextureFromDataF16(colorArray, textureSize.x, textureSize.y, Constants.TEXTUREFORMAT_RGBA);
             if (sh) {
                 this._shTextures = [];
                 for (const shData of sh) {
@@ -1578,7 +1574,7 @@ export class GaussianSplattingMesh extends Mesh {
                     this._shTextures!.push(shTexture);
                 }
             }
-            this._instanciateWorker();
+            this._instantiateWorker();
         }
     }
 
@@ -1615,7 +1611,7 @@ export class GaussianSplattingMesh extends Mesh {
         this._splatPositions = new Float32Array(4 * textureLength);
         const covA = new Uint16Array(textureLength * 4);
         const covB = new Uint16Array((this._useRGBACovariants ? 4 : 2) * textureLength);
-        const colorArray = new Uint8Array(textureLength * 4);
+        const colorArray = new Uint16Array(textureLength * 4);
 
         const minimum = new Vector3(Number.MAX_VALUE, Number.MAX_VALUE, Number.MAX_VALUE);
         const maximum = new Vector3(-Number.MAX_VALUE, -Number.MAX_VALUE, -Number.MAX_VALUE);
@@ -1709,7 +1705,7 @@ export class GaussianSplattingMesh extends Mesh {
         this.forcedInstanceCount = paddedVertexCount >> 4;
     }
 
-    private _updateSubTextures(centers: Float32Array, covA: Uint16Array, covB: Uint16Array, colors: Uint8Array, lineStart: number, lineCount: number, sh?: Uint8Array[]): void {
+    private _updateSubTextures(centers: Float32Array, covA: Uint16Array, covB: Uint16Array, colors: Uint16Array, lineStart: number, lineCount: number, sh?: Uint8Array[]): void {
         const updateTextureFromData = (texture: BaseTexture, data: ArrayBufferView, width: number, lineStart: number, lineCount: number) => {
             (this.getEngine() as ThinEngine).updateTextureData(texture.getInternalTexture()!, data, 0, lineStart, width, lineCount, 0, 0, false);
         };
@@ -1720,7 +1716,7 @@ export class GaussianSplattingMesh extends Mesh {
         const texelCount = lineCount * textureSize.x;
         const covAView = new Uint16Array(covA.buffer, texelStart * 4 * Uint16Array.BYTES_PER_ELEMENT, texelCount * 4);
         const covBView = new Uint16Array(covB.buffer, texelStart * covBSItemSize * Uint16Array.BYTES_PER_ELEMENT, texelCount * covBSItemSize);
-        const colorsView = new Uint8Array(colors.buffer, texelStart * 4, texelCount * 4);
+        const colorsView = new Uint16Array(colors.buffer, texelStart * 4 * Uint16Array.BYTES_PER_ELEMENT, texelCount * 4);
         const centersView = new Float32Array(centers.buffer, texelStart * 4 * Float32Array.BYTES_PER_ELEMENT, texelCount * 4);
         updateTextureFromData(this._covariancesATexture!, covAView, textureSize.x, lineStart, lineCount);
         updateTextureFromData(this._covariancesBTexture!, covBView, textureSize.x, lineStart, lineCount);
@@ -1734,7 +1730,7 @@ export class GaussianSplattingMesh extends Mesh {
             }
         }
     }
-    private _instanciateWorker(): void {
+    private _instantiateWorker(): void {
         if (!this._vertexCount) {
             return;
         }

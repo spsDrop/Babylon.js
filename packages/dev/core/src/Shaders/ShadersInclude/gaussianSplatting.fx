@@ -85,7 +85,7 @@ Splat readSplat(float splatIndex)
 
     return splat;
 }
-    
+
 #if defined(WEBGL2) || defined(WEBGPU) || defined(NATIVE)
 // no SH for GS and WebGL1
 // dir = normalized(splat pos - cam pos)
@@ -99,7 +99,7 @@ vec3 computeColorFromSHDegree(vec3 dir, const vec3 sh[16])
     SH_C2[2] = 0.315391565;
     SH_C2[3] = -1.09254843;
     SH_C2[4] = 0.546274215;
-    
+
     float SH_C3[7];
     SH_C3[0] = -0.59004358;
     SH_C3[1] = 2.890611442;
@@ -120,7 +120,7 @@ vec3 computeColorFromSHDegree(vec3 dir, const vec3 sh[16])
 #if SH_DEGREE > 1
     float xx = x * x, yy = y * y, zz = z * z;
     float xy = x * y, yz = y * z, xz = x * z;
-    result += 
+    result +=
         SH_C2[0] * xy * sh[4] +
         SH_C2[1] * yz * sh[5] +
         SH_C2[2] * (2.0 * zz - xx - yy) * sh[6] +
@@ -128,12 +128,12 @@ vec3 computeColorFromSHDegree(vec3 dir, const vec3 sh[16])
         SH_C2[4] * (xx - yy) * sh[8];
 
 #if SH_DEGREE > 2
-    result += 
+    result +=
         SH_C3[0] * y * (3.0 * xx - yy) * sh[9] +
         SH_C3[1] * xy * z * sh[10] +
-        SH_C3[2] * y * (4.0 * zz - xx - yy) * sh[11] +
-        SH_C3[3] * z * (2.0 * zz - 3.0 * xx - 3.0 * yy) * sh[12] +
-        SH_C3[4] * x * (4.0 * zz - xx - yy) * sh[13] +
+        SH_C3[2] * y * (5.0 * zz - 1.0) * sh[11] +
+        SH_C3[3] * z * (5.0 * zz - 3.0) * sh[12] +
+        SH_C3[4] * x * (5.0 * zz - 1.0) * sh[13] +
         SH_C3[5] * z * (xx - yy) * sh[14] +
         SH_C3[6] * x * (xx - 3.0 * yy) * sh[15];
 #endif
@@ -157,7 +157,7 @@ vec4 decompose(uint value)
 vec3 computeSH(Splat splat, vec3 dir)
 {
     vec3 sh[16];
-    
+
     sh[0] = vec3(0.,0.,0.);
 #if SH_DEGREE > 0
     vec4 sh00 = decompose(splat.sh0.x);
@@ -193,7 +193,7 @@ vec3 computeSH(Splat splat, vec3 dir)
     sh[12] = vec3(sh08.y, sh08.z, sh08.w);
     sh[13] = vec3(sh09.x, sh09.y, sh09.z);
     sh[14] = vec3(sh09.w, sh10.x, sh10.y);
-    sh[15] = vec3(sh10.z, sh10.w, sh11.x);    
+    sh[15] = vec3(sh10.z, sh10.w, sh11.x);
 #endif
 
     return computeColorFromSHDegree(dir, sh);
@@ -218,28 +218,28 @@ vec4 gaussianSplatting(vec2 meshPos, vec3 worldPos, vec2 scale, vec3 covA, vec3 
     }
 
     mat3 Vrk = mat3(
-        covA.x, covA.y, covA.z, 
+        covA.x, covA.y, covA.z,
         covA.y, covB.x, covB.y,
         covA.z, covB.y, covB.z
     );
 
     // Detect if projection is orthographic (projectionMatrix[3][3] == 1.0)
     bool isOrtho = abs(projectionMatrix[3][3] - 1.0) < 0.001;
-    
+
     mat3 J;
     if (isOrtho) {
         // Orthographic projection: no perspective division needed
         // Just the focal/scale terms without z-dependence
         J = mat3(
-            focal.x, 0., 0., 
-            0., focal.y, 0., 
+            focal.x, 0., 0.,
+            0., focal.y, 0.,
             0., 0., 0.
         );
     } else {
         // Perspective projection: original Jacobian with z-dependence
         J = mat3(
-            focal.x / camspace.z, 0., -(focal.x * camspace.x) / (camspace.z * camspace.z), 
-            0., focal.y / camspace.z, -(focal.y * camspace.y) / (camspace.z * camspace.z), 
+            focal.x / camspace.z, 0., -(focal.x * camspace.x) / (camspace.z * camspace.z),
+            0., focal.y / camspace.z, -(focal.y * camspace.y) / (camspace.z * camspace.z),
             0., 0., 0.
         );
     }
@@ -281,12 +281,12 @@ vec4 gaussianSplatting(vec2 meshPos, vec3 worldPos, vec2 scale, vec3 covA, vec3 
     vec2 minorAxis = min(sqrt(2.0 * lambda2), 1024.0) * vec2(diagonalVector.y, -diagonalVector.x);
 
     vec2 vCenter = vec2(pos2d);
-    
+
     // For ortho projection, pos2d.w is 1.0
     float scaleFactor = isOrtho ? 1.0 : pos2d.w;
-    
+
     return vec4(
-        vCenter 
+        vCenter
         + ((meshPos.x * majorAxis
         + meshPos.y * minorAxis) * invViewport * scaleFactor) * scale, pos2d.zw);
 }

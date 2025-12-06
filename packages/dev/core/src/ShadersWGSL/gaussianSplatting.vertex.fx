@@ -64,7 +64,8 @@ fn main(input : VertexInputs) -> FragmentInputs {
     vertexOutputs.vColor = vec4f(splat.color.xyz + computeSH(splat, dir), splat.color.w * uniforms.alpha);
 #else
     vertexOutputs.vColor = vec4f(splat.color.xyz, splat.color.w * uniforms.alpha);
-#endif
+
+    vertexOutputs.vColor = clamp(vertexOutputs.vColor, vec4f(0.0), vec4f(1.0));
 
     vertexOutputs.position = gaussianSplatting(input.position.xy, worldPos.xyz, vec2f(1.0, 1.0), covA, covB, mesh.world, scene.view, scene.projection, uniforms.focal, uniforms.invViewport, uniforms.kernelSize);
 

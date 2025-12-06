@@ -60,6 +60,7 @@ void main () {
     vColor.xyz = splat.color.xyz + computeSH(splat, dir);
 #endif
     vColor.w *= alpha;
+    vColor = clamp(vColor, vec4(0.0), vec4(1.0));
 
     gl_Position = gaussianSplatting(position.xy, worldPos.xyz, vec2(1.,1.), covA, covB, world, view, projection);
 

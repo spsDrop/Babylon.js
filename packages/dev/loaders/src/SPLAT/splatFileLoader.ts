@@ -297,7 +297,7 @@ export class SPLATFileLoader implements ISceneLoaderPluginAsync, ISceneLoaderPlu
                                     babylonMeshesArray.push(gaussianSplatting);
                                     gaussianSplatting.updateData(parsedPLY.data, parsedPLY.sh);
                                     if (parsedPLY.compressed || !parsedPLY.rawSplat) {
-                                        gaussianSplatting.viewDirectionFactor.set(-1, -1, 1);
+                                        gaussianSplatting.viewDirectionFactor.set(1, -1, -1);
                                     }
 
                                     if (parsedPLY.chirality === "RightHanded") {
